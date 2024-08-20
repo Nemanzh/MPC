@@ -123,10 +123,15 @@ async function connectAndRequestKey() {
   const paymentKeyHash = pKey.to_public().hash();
   const stakeKeyHash = sKey.to_public().hash();
 
-  const { address, stakeAddress } = getAddressesFromKeys(pKey, sKey, 'preprod');
+  const { address, stakeAddress, paymentAddress } = getAddressesFromKeys(
+    pKey,
+    sKey,
+    'preprod'
+  );
 
   console.log('Address:', address);
   console.log('Stake Address:', stakeAddress);
+  console.log('Payment Address:', paymentAddress);
 
   let message = 'Hello, Cardano!';
   let hexMessage = '';
@@ -135,14 +140,14 @@ async function connectAndRequestKey() {
   }
 
   const network = CardanoWasm.NetworkInfo.testnet().network_id(); // Testnet (0) or Mainnet (1)
-  const rewardAddress = getRewardAddressFromStakingKey(sKey, network);
+  // const rewardAddress = getRewardAddressFromStakingKey(sKey, network);
 
-  console.log(rewardAddress, ' rewardAddress');
-  const signedMessage = '';
+  //console.log(rewardAddress, ' rewardAddress');
+  let signedMessage = '';
   if (address.startsWith('e0') || address.startsWith('e1')) {
-    signedMessage = signDataUtil(rewardAddress, hexMessage, sKey.to_bech32()); //await lucid.wallet.signMessage(rewardAddress, message)
+    signedMessage = signDataUtil(paymentAddress, hexMessage, sKey.to_bech32()); //await lucid.wallet.signMessage(rewardAddress, message)
   } else {
-    signedMessage = signDataUtil(rewardAddress, hexMessage, pKey.to_bech32()); //await lucid.wallet.signMessage(rewardAddress, message)
+    signedMessage = signDataUtil(paymentAddress, hexMessage, pKey.to_bech32()); //await lucid.wallet.signMessage(rewardAddress, message)
   }
   console.log(signedMessage, 'signedMessage');
   console.log(address, 'address');
@@ -179,7 +184,7 @@ const getAddressesFromKeys = (paymentKey, stakeKey, network) => {
     C.StakeCredential.from_keyhash(stakeKeyHash)
   )
     .to_address()
-    .to_bech32(undefined);
+    .to_bech32();
 
   console.log({ address });
   const stakeAddr = C.RewardAddress.new(
@@ -187,8 +192,15 @@ const getAddressesFromKeys = (paymentKey, stakeKey, network) => {
     C.StakeCredential.from_keyhash(stakeKeyHash)
   )
     .to_address()
-    .to_bech32(undefined);
-  return { address, stakeAddress: stakeAddr };
+    .to_bech32();
+  const paymentAddr = C.RewardAddress.new(
+    networkId,
+    C.StakeCredential.from_keyhash(paymentKeyHash)
+  )
+    .to_address()
+    .to_bech32();
+
+  return { address, stakeAddress: stakeAddr, paymentAddress: paymentAddr };
 };
 
 function signDataUtil(addressHex, payload, privateKey) {
@@ -198,7 +210,7 @@ function signDataUtil(addressHex, payload, privateKey) {
   );
   protectedHeaders.set_header(
     M.Label.new_text('address'),
-    M.CBORValue.new_bytes(fromHex(addressHex))
+    M.CBORValue.new_bytes(addressHex)
   );
   const protectedSerialized = M.ProtectedHeaderMap.new(protectedHeaders);
   const unprotectedHeaders = M.HeaderMap.new();
@@ -240,11 +252,15 @@ const utf8ToHex = (str) => {
 function getRewardAddressFromStakingKey(stakingKey, networkId) {
   // Convert the staking key to a public key
   const stakingPubKey = stakingKey.to_public();
+  const hashPubKey = stakingPubKey.hash();
+
+  console.log(hashPubKey, 'hashPubKey');
+  const fromHessh = CardanoWasm.StakeCredential.from_keyhash(hashPubKey);
 
   // Create the reward address using the staking key's public key
   const rewardAddress = CardanoWasm.RewardAddress.new(
     networkId, // Network ID (0 = testnet, 1 = mainnet)
-    CardanoWasm.StakeCredential.from_keyhash(stakingPubKey.hash())
+    fromHessh
   );
 
   // Convert the reward address to bech32 format (human-readable)
