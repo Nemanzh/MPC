@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import bip39 from 'bip39';
 import CardanoWasm from '@emurgo/cardano-serialization-lib-nodejs';
+import CardanoWallet from 'cardano-wallet-js';
 import { C, M, fromHex, toHex } from 'lucid-cardano';
 
 // Load your RSA private key for signing JWT (ensure this is securely stored and loaded)
@@ -134,7 +135,7 @@ async function connectAndRequestKey() {
   }
 
   const network = CardanoWasm.NetworkInfo.testnet().network_id(); // Testnet (0) or Mainnet (1)
-  const rewardAddress = getRewardAddressFromStakingKey(stakeKeyHash, network);
+  const rewardAddress = getRewardAddressFromStakingKey(sKey, network);
 
   console.log(rewardAddress, ' rewardAddress');
   const signedMessage = '';
@@ -235,5 +236,19 @@ const utf8ToHex = (str) => {
     .map((char) => char.charCodeAt(0).toString(16).padStart(2, '0'))
     .join('');
 };
+
+function getRewardAddressFromStakingKey(stakingKey, networkId) {
+  // Convert the staking key to a public key
+  const stakingPubKey = stakingKey.to_public();
+
+  // Create the reward address using the staking key's public key
+  const rewardAddress = CardanoWasm.RewardAddress.new(
+    networkId, // Network ID (0 = testnet, 1 = mainnet)
+    CardanoWasm.StakeCredential.from_keyhash(stakingPubKey.hash())
+  );
+
+  // Convert the reward address to bech32 format (human-readable)
+  return rewardAddress.to_address().to_bech32();
+}
 
 connectAndRequestKey();
